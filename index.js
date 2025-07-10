@@ -49,6 +49,40 @@ async function run() {
         // console.log(error);
       }
     });
+
+    //===>Post a Job<===//
+    app.post("/jobs", async (req, res) => {
+      try {
+        const body = req.body;
+        // console.log(body);
+        const hr_Email = body?.hr_email;
+
+        const hr_posts = await jobsCollections
+          .find({ hr_email: hr_Email })
+          .toArray();
+
+        const isPosted = hr_posts?.filter(
+          (post) => post?.title === body?.title
+        );
+
+        if (isPosted?.length > 0) {
+          return res.send({
+            success: false,
+            message: "Already Posted this job!",
+          });
+        }
+
+        const result = await jobsCollections.insertOne(body);
+
+        res.send({
+          success: true,
+          message: "Your Job is posted successfully!",
+        });
+      } catch (error) {
+        res.send({ success: false, message: error.code });
+      }
+    });
+
     //===>Get Specific Jobs<===//
     app.get("/jobs/:id", async (req, res) => {
       try {
@@ -70,13 +104,15 @@ async function run() {
     app.post("/apply", async (req, res) => {
       try {
         const application = req.body;
-        // console.log(application);
+        const jobId = application?.job_id;
+        const query = { _id: new ObjectId(jobId) };
+        // console.log(query);
+
         const applicantEmail = application?.email;
         const allApplications = await applicationCollections
           .find({ email: applicantEmail })
           .toArray();
-        // console.log(allApplications);
-        const isApplied = allApplications.filter(
+        const isApplied = allApplications?.filter(
           (ap) => ap?.job_id === application?.job_id
         );
         if (isApplied?.length > 0) {
@@ -86,11 +122,18 @@ async function run() {
           });
         }
         const result = await applicationCollections.insertOne(application);
-        // console.log(result);
+        const applicationId = result?.insertedId?.toString();
+        const updateDoc = {
+          $push: {
+            applied: applicationId,
+          },
+        };
+        await jobsCollections.updateOne(query, updateDoc);
+        // console.log(jobsApplied);
         res.send({ success: true, message: "Application Sent!" });
       } catch (error) {
         res.send({ success: false, message: error.code });
-        // console.log(error);
+        console.log(error);
       }
     });
 
@@ -123,6 +166,66 @@ async function run() {
           success: false,
           message: error.code,
         });
+      }
+    });
+
+    //===>Get Applicant Info<===//
+    app.get("/applications/jobs/:job_id", async (req, res) => {
+      try {
+        const jobId = req.params.job_id;
+        const query = { job_id: jobId };
+        const result = await applicationCollections.find(query).toArray();
+        res.send({
+          success: true,
+          message: "Applicants information loaded!",
+          result,
+        });
+      } catch (error) {
+        res.send({ success: false, message: error.code });
+        console.log(error);
+      }
+    });
+
+    app.patch("/applications/:id", async (req, res) => {
+      try {
+        const id = req.params.id;
+        const data = req.body;
+        // console.log(id, data);
+        const query = { _id: new ObjectId(id) };
+        const updateDocs = {
+          $set: {
+            status: data?.status,
+          },
+        };
+        await applicationCollections.updateOne(query, updateDocs);
+        res.send({
+          success: true,
+          message: `This Applicant is ${data?.status}`,
+        });
+      } catch (error) {
+        console.log(error);
+        res.send({ success: false, message: error.code });
+      }
+    });
+
+    //===>Get HR Posted Jobs<===//
+    app.get("/allJobs", async (req, res) => {
+      try {
+        const { email } = req.query;
+        // console.log(email);
+        const result = await jobsCollections
+          .find({ hr_email: email })
+          .toArray();
+        const jobPost = await applicationCollections.find().toArray();
+        // console.log(jobPost);
+        res.send({
+          success: true,
+          message: "Your Posted Jobs are loaded!",
+          result,
+        });
+      } catch (error) {
+        // console.log(error);
+        res.send({ success: false, message: error.code });
       }
     });
 
