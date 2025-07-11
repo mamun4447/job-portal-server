@@ -1,15 +1,38 @@
 const express = require("express");
+const jwt = require("jsonwebtoken");
+const cookieParser = require("cookie-parser");
+
 const cors = require("cors");
 const app = express();
 require("dotenv").config();
+
 const port = process.env.PORT || 5000;
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 
-app.use(cors());
+app.use(
+  cors({
+    origin: "http://localhost:5173",
+    credentials: true,
+  })
+);
 app.use(express.json());
+app.use(cookieParser());
 
-//job_hunter
-// F7NrRLT1dDod7rxc
+const verifyToken = (req, res, next) => {
+  const token = req?.cookies?.token;
+
+  if (!token) {
+    return res.status(401).send({ message: "Unauthorized access" });
+  }
+  jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
+    if (err) {
+      return res.status(401).send({ message: "Unauthorized access" });
+    }
+    req.user = decoded;
+    // console.log(req.user);
+    next();
+  });
+};
 
 //===>MongoDB<===//
 
@@ -34,6 +57,20 @@ async function run() {
       .db("jobPortal")
       .collection("applications");
 
+    app.post("/jwt", async (req, res) => {
+      const user = req.body;
+      const result = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {
+        expiresIn: "5h",
+      });
+
+      res
+        .cookie("token", result, {
+          httpOnly: true,
+          secure: false,
+        })
+        .send({ success: true });
+    });
+
     //===>Get Jobs<===//
     app.get("/jobs", async (req, res) => {
       try {
@@ -51,7 +88,7 @@ async function run() {
     });
 
     //===>Post a Job<===//
-    app.post("/jobs", async (req, res) => {
+    app.post("/jobs", verifyToken, async (req, res) => {
       try {
         const body = req.body;
         // console.log(body);
@@ -101,7 +138,7 @@ async function run() {
     });
 
     //===>Post Job applications<===//
-    app.post("/apply", async (req, res) => {
+    app.post("/apply", verifyToken, async (req, res) => {
       try {
         const application = req.body;
         const jobId = application?.job_id;
@@ -138,10 +175,14 @@ async function run() {
     });
 
     //==>Get Applications<===//
-    app.get("/applications", async (req, res) => {
+    app.get("/applications", verifyToken, async (req, res) => {
       try {
         const { email } = req?.query;
-        // console.log(email);
+
+        if (req?.user?.email !== req?.query?.email) {
+          return res.status(403).send({ message: "Forbiden" });
+        }
+
         const result = await applicationCollections.find({ email }).toArray();
 
         for (const application of result) {
@@ -170,10 +211,11 @@ async function run() {
     });
 
     //===>Get Applicant Info<===//
-    app.get("/applications/jobs/:job_id", async (req, res) => {
+    app.get("/applications/jobs/:job_id", verifyToken, async (req, res) => {
       try {
         const jobId = req.params.job_id;
         const query = { job_id: jobId };
+
         const result = await applicationCollections.find(query).toArray();
         res.send({
           success: true,
@@ -186,7 +228,7 @@ async function run() {
       }
     });
 
-    app.patch("/applications/:id", async (req, res) => {
+    app.patch("/applications/:id", verifyToken, async (req, res) => {
       try {
         const id = req.params.id;
         const data = req.body;
@@ -209,15 +251,18 @@ async function run() {
     });
 
     //===>Get HR Posted Jobs<===//
-    app.get("/allJobs", async (req, res) => {
+    app.get("/allJobs", verifyToken, async (req, res) => {
       try {
-        const { email } = req.query;
-        // console.log(email);
+        const { email } = req?.query;
+
+        if (req?.user?.email !== req?.query?.email) {
+          return res.status(403).send({ message: "Forbiden" });
+        }
+
         const result = await jobsCollections
           .find({ hr_email: email })
           .toArray();
-        const jobPost = await applicationCollections.find().toArray();
-        // console.log(jobPost);
+
         res.send({
           success: true,
           message: "Your Posted Jobs are loaded!",
