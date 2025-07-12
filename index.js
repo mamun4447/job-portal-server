@@ -11,13 +11,17 @@ const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 
 app.use(
   cors({
-    origin: "http://localhost:5173",
+    origin: [
+      "https://job-box-1.web.app",
+      "https://job-box-1.firebaseapp.com", // <-- fix typo (add slash)
+    ],
     credentials: true,
   })
 );
 app.use(express.json());
 app.use(cookieParser());
 
+//===>Token Verify<===//
 const verifyToken = (req, res, next) => {
   const token = req?.cookies?.token;
 
@@ -48,7 +52,7 @@ const client = new MongoClient(uri, {
 
 async function run() {
   try {
-    await client.connect();
+    // await client.connect();
 
     // ===>Database collections<===//
     const jobsCollections = client.db("jobPortal").collection("jobs");
@@ -66,7 +70,8 @@ async function run() {
       res
         .cookie("token", result, {
           httpOnly: true,
-          secure: false,
+          secure: process.env.NODE_ENV === "production", // ✅ this must be true in Vercel
+          sameSite: process.env.NODE_ENV === "production" ? "none" : "strict", // ✅
         })
         .send({ success: true });
     });
@@ -74,7 +79,8 @@ async function run() {
       res
         .clearCookie("token", {
           httpOnly: true,
-          secure: false,
+          secure: process.env.NODE_ENV === "production",
+          sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
         })
         .send({ success: true });
     });
@@ -283,7 +289,7 @@ async function run() {
     });
 
     // Send a ping to confirm a successful connection
-    await client.db("admin").command({ ping: 1 });
+    // await client.db("admin").command({ ping: 1 });
     console.log(
       "Pinged your deployment. You successfully connected to MongoDB!"
     );
