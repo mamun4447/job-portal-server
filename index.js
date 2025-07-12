@@ -35,7 +35,6 @@ const verifyToken = (req, res, next) => {
 };
 
 //===>MongoDB<===//
-
 const uri = `mongodb+srv://${process.env.DB_User}:${process.env.DB_Pass}@cluster0.3pjth5o.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
@@ -57,10 +56,11 @@ async function run() {
       .db("jobPortal")
       .collection("applications");
 
+    //JWT realated APIs
     app.post("/jwt", async (req, res) => {
       const user = req.body;
       const result = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {
-        expiresIn: "5h",
+        expiresIn: "1h",
       });
 
       res
